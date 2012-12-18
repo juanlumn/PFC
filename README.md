@@ -1,7 +1,7 @@
 PFC
 ===
 
-Augmented reality using kinect developed in C++ using Qt Creator.
+Augmented reality using kinect developed in C++ using Qt Creator in Linux.
 
 This is a part of my Final Studies Project. 
 
