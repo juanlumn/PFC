@@ -18,16 +18,17 @@
 class TOpenGlViewer:public QGLWidget{
     Q_OBJECT
 private:
-    int vis_mode; //0 Wireframe 1 Solid
-    int W,H;
-    bool modelight;
+    int vis_mode; //0 wireframe 1 solid
     QImage imagen;
-    QVector <TPunto3D> P;
-    QVector <TCara> C;
-    QVector<TPixel3D> puntos;
     TMatrizT T;
+    int W,H;
+    QVector <TPunto3D> P;
+    QVector <TCara> F;
+    QVector <TColor> C;
+    QVector<TPixel3D> puntos;
+    QVector <TPunto3D> NM;
 public:
-    TOpenGlViewer(int w, int h, QWidget *parent = 0):QGLWidget(parent){
+   TOpenGlViewer(int w, int h, QWidget *parent = 0):QGLWidget(parent){
         W=w;
         H=h;
         vis_mode=1;
@@ -35,22 +36,43 @@ public:
         return;
     }
 
-    void SetScene(QVector <TPunto3D> p,QVector <TCara> c){
+    void SetScene(QVector <TPunto3D> p,QVector <TCara> f,QVector <TColor> c){
+        QVector <TPunto3D> Normal;
         P=p;
+        F=f;
         C=c;
+        //Computes the normal for every faces
+        for (int i=0;i<F.count();i++){
+            TPunto3D p1 = P[F[i].F1()];
+            TPunto3D p2 = P[F[i].F2()];
+            TPunto3D p3 = P[F[i].F3()];
+
+            TPunto3D v1 = p2-p1;v1.Normalizar();
+            TPunto3D v2 = p3-p1;v2.Normalizar();
+
+            TPunto3D n = v1*v2;n.Normalizar();
+            //Stores the normals in Normal
+            Normal.append(n);
+        }
+        //Computes the normal for every vertex
+        for (int x=0;x<P.count();x++){
+            TPunto3D Nmed;
+            int contador=0;
+            for (int i=0;i<F.count();i++){
+                if(F[i].F1()==x||F[i].F2()==x||F[i].F3()==x||F[i].F4()==x){
+                    Nmed=Normal[i]+Nmed;
+                    contador++;
+                }
+            }
+            Nmed=Nmed/contador;Nmed.Normalizar();
+            NM.append(Nmed);
+        }
         return;
     }
-
     //Visualization settings
     void SetVisualizationMode(int mode){
         vis_mode = mode;
         updateGL();
-        return;
-    }
-
-    //Light settings
-    void SetLightMode(bool mode){
-        modelight=mode;
         return;
     }
 
@@ -79,40 +101,82 @@ public:
         return;
     }
 
-
-    void DrawCube(QVector <TPunto3D> P,QVector <TCara> C){
+    void DrawCube(QVector <TPunto3D> P,QVector <TCara> F,QVector <TColor> C){
         QVector <TPunto3D> Paux=P;
+        QVector <TPunto3D> NMaux=NM;
         //Transforms all pointss
-        for(int i=0;i<Paux.count();i++) T.Transformar(Paux[i]);
+        TMatrizT T1=T;
+        T1.AnularT();
+        for(int i=0;i<Paux.count();i++) {
+            T.Transformar(Paux[i]);
+            T1.Transformar(NMaux[i]);NMaux[i].Normalizar();
+        }
 
         //Visualization mode
         switch(vis_mode){
         case 0: glPolygonMode(GL_FRONT_AND_BACK,GL_LINE); break;
         case 1: glPolygonMode(GL_FRONT_AND_BACK,GL_FILL); break;
         }
-        //      glColor3ub((GLubyte)100,(GLubyte)125,(GLubyte)100);
-        glClearColor(0.5f,0.5f,0.5f,1.0f);
-
-        if (modelight==false){
-            glDisable(GL_LIGHT0);
-            glDisable(GL_LIGHTING);
-        }else{
-            glEnable(GL_LIGHTING);
-            glEnable(GL_LIGHT0);
-        }
-
+        glEnable(GL_DEPTH_TEST);
+        glShadeModel(GL_SMOOTH);
+        glEnable(GL_COLOR_MATERIAL);
+        //Lights
+        GLfloat Position[]={1.0f,1.0f,0.0f,1.0f};
+        GLfloat Ambient[] = {1.0f, 1.0f, 1.0f, 1.0f};
+        GLfloat Diffuse[] = {0.8f, 0.8f, 0.8f, 1.0f};
+        GLfloat Specular[]= {1.0f, 1.0f, 1.0f, 1.0f};
+        glLightfv(GL_LIGHT0, GL_POSITION, Position);
+        glLightfv( GL_LIGHT0, GL_AMBIENT, Ambient);
+        glLightfv( GL_LIGHT0, GL_DIFFUSE, Diffuse);
+        glLightfv( GL_LIGHT0, GL_SPECULAR,Specular);
+        glLightModelf(GL_LIGHT_MODEL_TWO_SIDE, 1.0);
+        //Reflected light and brightness coefficient
+        GLfloat mat_specular[] = { 1.0, 1.0, 1.0, 1.0 };
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
+        GLfloat mat_shininess[] = { 100.0 };
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, mat_shininess);
+        glEnable(GL_LIGHTING);
+        glEnable(GL_LIGHT0);
+       
         //Draw the faces
-        for (int i=0;i<C.count();i++){
+        for (int i=0;i<F.count();i++){
+            int numP=F[i].F1();
+            TPunto3D n=NMaux[numP];
+            TPunto3D p=Paux[numP];
+            TColor c=C[numP];
 
             glBegin(GL_POLYGON);
 
-            glVertex3f(Paux[C[i].C1()].X(), Paux[C[i].C1()].Y(), Paux[C[i].C1()].Z());
-            glVertex3f(Paux[C[i].C2()].X(), Paux[C[i].C2()].Y(), Paux[C[i].C2()].Z());
-            glVertex3f(Paux[C[i].C3()].X(), Paux[C[i].C3()].Y(), Paux[C[i].C3()].Z());
-            if(C[i].C4()!=-1)glVertex3f(Paux[C[i].C4()].X(), Paux[C[i].C4()].Y(), Paux[C[i].C4()].Z());
+            glColor4f(c.R(),c.G(),c.B(),c.Alpha());
+            glNormal3f(n.X(),n.Y(),n.Z());
+            glVertex3f(p.X(), p.Y(),p.Z());
 
+            numP=F[i].F2();
+            c=C[numP];
+            glColor4f(c.R(),c.G(),c.B(),c.Alpha());
+            n=NMaux[numP];
+            glNormal3f(n.X(),n.Y(),n.Z());
+            p=Paux[numP];
+            glVertex3f(p.X(), p.Y(),p.Z());
+
+            numP=F[i].F3();
+            c=C[numP];
+            glColor4f(c.R(),c.G(),c.B(),c.Alpha());
+            n=NMaux[numP];
+            glNormal3f(n.X(),n.Y(),n.Z());
+            p=Paux[numP];
+            glVertex3f(p.X(), p.Y(),p.Z());
+
+            if(F[i].F4()!=-1){
+                numP=F[i].F4();
+                c=C[numP];
+                glColor4f(c.R(),c.G(),c.B(),c.Alpha());
+                n=NMaux[numP];
+                glNormal3f(n.X(),n.Y(),n.Z());
+                p=Paux[numP];
+                glVertex3f(p.X(), p.Y(),p.Z());
+            }
             glEnd();
-
         }
 
     }
@@ -164,7 +228,7 @@ public:
         glDisable(GL_LIGHTING);
         glEnable(GL_DOUBLEBUFFER);
 
-        DrawCube(P,C);
+        DrawCube(P,F,C);
         DrawImagePoints();
 
         return;
