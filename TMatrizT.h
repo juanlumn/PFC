@@ -5,20 +5,37 @@
 using namespace FuncionesVarias;
 
 ////////////////////////////////////////////////
+//               Class Color
+////////////////////////////////////////////////
+class TColor{
+private:
+    float C[4];
+public:
+    TColor(){
+        C[0]=C[1]=C[2]=C[3]=-1;
+        return;
+    }
+    float& R(){ return C[0]; }
+    float& G(){ return C[1]; }
+    float& B(){ return C[2]; }
+    float& Alpha(){ return C[3]; }
+};
+
+////////////////////////////////////////////////
 //               Class Cara
 ////////////////////////////////////////////////
 class TCara{
 private:
-    int C[4];
+    int F[4];
 public:
     TCara(){
-        C[0]=C[1]=C[2]=C[3]=-1;
+        F[0]=F[1]=F[2]=F[3]=-1;
         return;
     }
-    int& C1(){ return C[0]; }
-    int& C2(){ return C[1]; }
-    int& C3(){ return C[2]; }
-    int& C4(){ return C[3]; }
+    int& F1(){ return F[0]; }
+    int& F2(){ return F[1]; }
+    int& F3(){ return F[2]; }
+    int& F4(){ return F[3]; }
 };
 
 ////////////////////////////////////////////////
