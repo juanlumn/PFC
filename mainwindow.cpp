@@ -1,10 +1,12 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-
 #include "QFileDialog"
+
 #include <QImage>
 #include <QVector>
 #include <QProcess>
+
+#include <TCamaraKinect.h>
 #include <QTime>
 
 #include <fstream>
@@ -12,19 +14,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <TCamaraKinect.h>
-
 using namespace std;
 
-
 MainWindow::MainWindow(QWidget *parent) :
-        QMainWindow(parent),
-        ui(new Ui::MainWindow)
+    QMainWindow(parent),
+    ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
     OGLViewer = new TOpenGlViewer(640,480);
     OGLViewer->show();
-    OGLViewer->SetVisualizationMode(0);
+    OGLViewer->SetVisualizationMode(1);
     connect(&timer,SIGNAL(timeout()),this,SLOT(NuevaImagen()));
 }
 
@@ -40,13 +39,11 @@ void MainWindow::NuevaImagen(){
 
     //If we get a new Image from the buffer
     if(CamaraKinect.ReadNewFrame()){
-        int N=0,BestKey=0;
-        TMatrizT Mmax,M,t;
-
         //Read the buffer's image
         Inew=*CamaraKinect.GetImageBuffer();
         QImage ImagenO=Inew.GetQImage();
-
+        int N=0,BestKey=0;
+        TMatrizT Mmax,M,t;
         //For all the keyframes
         Inew.BestE(LK,BestKey,E);
         //Ransac method
@@ -152,25 +149,33 @@ void MainWindow::on_pushButton_clicked()
 
 void MainWindow::on_actionCargar_triggered()
 {
-    //Loads .GEO files
-    c= QFileDialog::getOpenFileName(NULL,"Cargar Archivo .GEO",NULL,"*.geo");
+    //Loads .OFF files
+    c= QFileDialog::getOpenFileName(NULL,"Cargar Archivo .OFF",NULL,"*.off");
     if(c.isEmpty()==false){
         int vertices,caras,color;
+        string tipo;
         ifstream fichero(c.toAscii(), ifstream::in);
-        //Reads the number of vertex, faces and the color.
-        fichero>>vertices;fichero>>caras;fichero>>color;
-        cout<<"Vertices: "<<vertices<<" Caras: "<<caras<<" Color: "<<color<<endl;
+        //Reads the type of file, number of vertex, faces and the color.
+        fichero>>tipo;fichero>>vertices;fichero>>caras;fichero>>color;
         //Appends the vertex in the P vector
         P.clear();
         for (int i=0;i<vertices;i++){
             float aux;
             TPunto3D Paux;
-
             fichero>>aux;Paux.X()=aux;
             fichero>>aux;Paux.Y()=aux;
             fichero>>aux;Paux.Z()=aux;
-
             P.append(Paux);
+            //If it's COFF gets the color in C
+            if (tipo=="COFF"){
+               int auxC;
+               TColor Caux;
+               fichero>>auxC;Caux.R()=auxC/255.0;
+               fichero>>auxC;Caux.G()=auxC/255.0;
+               fichero>>auxC;Caux.B()=auxC/255.0;
+               fichero>>auxC;Caux.Alpha()=auxC/255.0;
+               C.append(Caux);
+            }
         }
 
         //Computes the limits in order to center the virtual object
@@ -202,59 +207,22 @@ void MainWindow::on_actionCargar_triggered()
 
         }
 
-        //Appends the faces in the C vector
-        C.clear();
+        //Appends the faces in F  
+        F.clear();
         for (int i=0;i<caras;i++){
             int NumP,Punto;
-            TCara Caux;
+            TCara Faux;
             NumP=0;
-
             fichero>>NumP;
-            fichero>>Punto;Caux.C1()=Punto-1;
-            fichero>>Punto;Caux.C2()=Punto-1;
-            fichero>>Punto;Caux.C3()=Punto-1;
-            if(NumP==4){fichero>>Punto;Caux.C4()=Punto-1;}
-
-            C.append(Caux);
+            fichero>>Punto;Faux.F1()=Punto;
+            fichero>>Punto;Faux.F2()=Punto;
+            fichero>>Punto;Faux.F3()=Punto;
+            if(NumP==4){
+                fichero>>Punto;
+                Faux.F4()=Punto;
+            }
+            F.append(Faux);
         }
-        //Sets the scene
-        OGLViewer->SetScene(P,C);
-        //Solid with lights ON will be the standard visualization mode
-        OGLViewer->SetVisualizationMode(1);
-        ui->actionModo_S_lido->setChecked(true);
-        ui->actionModo_Al_mbrico->setChecked(false);
-
-        OGLViewer->SetLightMode(true);
-        ui->actionActivado->setChecked(true);
-        ui->actionDesactivado->setChecked(false);
-
+        OGLViewer->SetScene(P,F,C);
     }
-}
-//Wireframe mode
-void MainWindow::on_actionModo_Al_mbrico_triggered()
-{
-    ui->actionModo_Al_mbrico->setChecked(true);
-    ui->actionModo_S_lido->setChecked(false);
-    OGLViewer->SetVisualizationMode(0);
-}
-//Solid mode
-void MainWindow::on_actionModo_S_lido_triggered()
-{
-    ui->actionModo_S_lido->setChecked(true);
-    ui->actionModo_Al_mbrico->setChecked(false);
-    OGLViewer->SetVisualizationMode(1);
-}
-//Light ON
-void MainWindow::on_actionActivado_triggered()
-{
-    ui->actionActivado->setChecked(true);
-    ui->actionDesactivado->setChecked(false);
-    OGLViewer->SetLightMode(true);
-}
-//Light OFF
-void MainWindow::on_actionDesactivado_triggered()
-{
-    ui->actionActivado->setChecked(false);
-    ui->actionDesactivado->setChecked(true);
-    OGLViewer->SetLightMode(false);
 }
